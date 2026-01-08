@@ -2,18 +2,68 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# --- KONFIGURASI GOOGLE SHEETS ---
-# Ganti ID di bawah dengan ID Spreadsheet Anda
-SHEET_ID = "1T4yqz7u-Wxu26SxlySmTCJpq58SGn5BHAozcZNjLwII"
-DATA_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=data"
-CATS_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=categories"
+# --- 1. KONFIGURASI HALAMAN ---
+st.set_page_config(page_title="VoC TRACTION Product", layout="wide", initial_sidebar_state="expanded")
 
-# Fungsi untuk menyimpan ke Google Sheets (via Form/Apps Script atau manual csv update)
-# Untuk kemudahan akses publik, kita akan menggunakan metode upload & download CSV 
-# atau integrasi library gspread. Namun untuk langkah awal ini, kita fokus pada tampilan publik.
+# --- 2. CSS INJECTION (Identik dengan HTML Anda) ---
+st.markdown("""
+    <style>
+    /* Menghilangkan header default streamlit */
+    header {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
 
-st.set_page_config(page_title="VoC TRACTION", layout="wide")
+    /* Background Utama */
+    .stApp {
+        background: radial-gradient(circle at top right, #1e293b, #020617);
+        color: #f1f5f9;
+    }
 
+    /* Sidebar Styling */
+    [data-testid="stSidebar"] {
+        background-color: #0f172a !important;
+        border-right: 1px solid #334155;
+    }
+
+    /* Custom Comment Card */
+    .comment-card { 
+        background: rgba(30, 41, 59, 0.4);
+        backdrop-filter: blur(10px);
+        padding: 20px;
+        border-radius: 14px;
+        margin-bottom: 15px; 
+        border: 1px solid #334155;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: 0.3s;
+    }
+    .comment-card.Positive { border-left: 4px solid #22c55e; }
+    .comment-card.Negative { border-left: 4px solid #f87171; }
+    .comment-card.Neutral { border-left: 1px solid #334155; }
+
+    /* Tags */
+    .tag { 
+        font-size: 9px; padding: 4px 10px; border-radius: 6px; 
+        font-weight: 800; color: white; text-transform: uppercase; 
+    }
+    .tag.Positive { background: #22c55e; }
+    .tag.Negative { background: #f87171; }
+    .tag.Neutral { background: #64748b; }
+
+    /* AI Card Summary */
+    .ai-card { 
+        width: 100%; padding: 20px; border-radius: 18px; font-size: 13px; line-height: 1.6;
+        background: linear-gradient(145deg, rgba(239, 68, 68, 0.08), rgba(0,0,0,0.02));
+        border: 1px solid rgba(239, 68, 68, 0.2); 
+    }
+    
+    /* Typography */
+    h1, h2, h3 { color: #f1f5f9 !important; font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- 3. LOGIKA SENTIMEN ---
 def get_sentiment(text):
     t = str(text).lower()
     pos = ['😍', '🥰', '👍', 'best', 'mantap', 'keren', 'puas', 'gercep', 'untung', 'bagus']
@@ -21,60 +71,79 @@ def get_sentiment(text):
     score = sum(3 for w in pos if w in t) - sum(4 for w in neg if w in t)
     return "Positive" if score >= 2 else ("Negative" if score <= -2 else "Neutral")
 
-# --- SIDEBAR ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
-    st.title("VoC TRACTION")
-    st.caption("TELKOMSEL ANALYTICS")
-    st.divider()
+    st.markdown("""
+        <div style="padding: 10px 0 20px 0;">
+            <h2 style="margin:0; font-size:20px; font-weight:800;">VoC <span style="color:#ef4444">TRACTION Product</span></h2>
+            <div style="font-size:10px; color:#64748b; font-weight:600;">TELKOMSEL ANALYTICS</div>
+        </div>
+        <hr style="border-color:#334155;">
+    """, unsafe_allow_html=True)
     
-    try:
-        cats_df = pd.read_csv(CATS_URL)
-        product_options = ["ALL"] + cats_df['name'].tolist()
-        active_cat = st.radio("Pilih Produk", product_options)
-    except:
-        st.error("Gagal memuat kategori. Pastikan Link Google Sheets benar.")
-
-# --- MAIN AREA ---
-col_main, col_summary = st.columns([2.5, 1], gap="large")
-
-with col_main:
-    st.title(f"Produk: {active_cat}")
+    # Navigasi ala Sidebar Anda
+    st.markdown("<div style='font-size:10px; color:#64748b; font-weight:800; margin-bottom:10px;'>MOBILE SERVICE</div>", unsafe_allow_html=True)
+    selected_product = st.radio("Pilih Produk", ["OWDI", "Perplexity Pro", "ChatGPT Go", "ALL"], label_visibility="collapsed")
     
-    # Fitur Upload
-    uploaded_file = st.file_uploader("📂 Import CSV Baru", type="csv")
-    if uploaded_file and active_cat != "ALL":
-        df_new = pd.read_csv(uploaded_file)
-        df_new = df_new.iloc[:, [0]] # Ambil kolom pertama
-        df_new.columns = ['comment']
-        df_new['product'] = active_cat
-        df_new['sentiment'] = df_new['comment'].apply(get_sentiment)
-        
-        # Di sini Anda bisa menambahkan logika menyimpan balik ke Google Sheets
-        st.success(f"Berhasil memproses {len(df_new)} data. (Simulasi Serverless)")
-        st.dataframe(df_new)
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("➕ Add New Product"):
+        new_name = st.text_input("Nama Produk")
+        if st.button("ADD NEW PRODUCT", use_container_width=True):
+            st.toast(f"Produk {new_name} ditambahkan!")
 
-    # Load Data ulasan
-    try:
-        db = pd.read_csv(DATA_URL)
-        filtered_df = db if active_cat == "ALL" else db[db['product'] == active_cat]
-        
-        if not filtered_df.empty:
-            for _, row in filtered_df.iloc[::-1].iterrows():
-                with st.container(border=True):
-                    c1, c2 = st.columns([5, 1])
-                    c1.write(f"**\"{row['comment']}\"**")
-                    s = row['sentiment']
-                    color = "green" if s == "Positive" else "red" if s == "Negative" else "gray"
-                    c2.markdown(f"**:{color}[{s.upper()}]**")
-    except:
-        st.info("Belum ada data di database.")
+# --- 5. MAIN CONTENT ---
+col_left, col_right = st.columns([2.5, 1], gap="large")
 
-# --- SUMMARY ---
-with col_summary:
-    st.subheader("Analytics Center")
-    if 'filtered_df' in locals() and not filtered_df.empty:
-        counts = filtered_df['sentiment'].value_counts()
-        fig = px.pie(values=counts.values, names=counts.index, hole=0.7,
-                     color=counts.index, color_discrete_map={'Positive':'#22c55e','Negative':'#ef4444','Neutral':'#64748b'})
-        fig.update_layout(showlegend=False, height=250)
-        st.plotly_chart(fig, use_container_width=True)
+with col_left:
+    st.markdown(f"<h1 style='margin-bottom:0;'>{selected_product}</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#64748b; font-size:14px;'>Monitoring ulasan pelanggan secara real-time.</p>", unsafe_allow_html=True)
+    
+    # Tombol Import CSV (Streamlit Native Button disesuaikan)
+    uploaded_file = st.file_uploader("📂 IMPORT CSV", type="csv", label_visibility="collapsed")
+    
+    # Simulasi Data Komentar (Sesuai gambar)
+    data = [
+        {"comment": "Infonya bermanfaat bgt", "sentiment": "Neutral"},
+        {"comment": "Thank you for information 😍", "sentiment": "Positive"},
+        {"comment": "Mantap", "sentiment": "Positive"},
+        {"comment": "BALAS DM min MAU CABUT. GAK KUAT MAHALNYA", "sentiment": "Negative"}
+    ]
+    
+    # Render Card Ulasan (Identik dengan)
+    for item in data:
+        st.markdown(f"""
+            <div class="comment-card {item['sentiment']}">
+                <div style="font-size:14px; flex:1; padding-right:20px; color:#f1f5f9;">"{item['comment']}"</div>
+                <span class="tag {item['sentiment']}">{item['sentiment']}</span>
+            </div>
+        """, unsafe_allow_html=True)
+
+# --- 6. SUMMARY & ANALYTICS ---
+with col_right:
+    st.markdown("<h3 style='margin-top:0;'>Analytics Center</h3>", unsafe_allow_html=True)
+    
+    # Chart Doughnut (Plotly transparan agar menyatu dengan background)
+    fig = px.pie(values=[43, 24, 412], names=['Pos', 'Neg', 'Neu'], hole=0.8,
+                 color_discrete_sequence=['#22c55e', '#ef4444', '#64748b'])
+    fig.update_layout(
+        showlegend=False, 
+        paper_bgcolor='rgba(0,0,0,0)', 
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=200, 
+        margin=dict(t=0, b=0, l=0, r=0)
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # AI Strategic Report (Identik dengan)
+    st.markdown(f"""
+        <div class="ai-card">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                <div style="width:8px; height:8px; background:#ef4444; border-radius:50%"></div>
+                <b style="font-size:11px; letter-spacing:1px;">SUMMARY REPORT</b>
+            </div>
+            <div style="display:flex; gap:15px; font-weight:700; margin-bottom:15px;">
+                <span>🟢 43</span> <span>🔴 24</span> <span>⚪ 412</span>
+            </div>
+            <b>Insight:</b> Sentimen positif mendominasi. Pertahankan layanan.
+        </div>
+    """, unsafe_allow_html=True)
